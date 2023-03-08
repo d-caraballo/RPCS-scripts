@@ -1,1 +1,1 @@
-# RPCS-scritps
+# RPCS-scripts
