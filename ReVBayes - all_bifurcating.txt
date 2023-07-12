@@ -1,0 +1,46 @@
+setwd("c:\\Users\\Diego\\Google Drive\\Labo\\SRPC Filogenia Corrientes\\revbayes-v1.2.1\\diploid_number_tucos")
+phylogeny <- readBranchLengthTrees("data/all_bifurcating.tre")[1]
+max_chromo = 90
+chromo_data = readCharacterDataDelimited("data/2n.txt", stateLabels=(max_chromo + 1), type="NaturalNumbers", delimiter="\t")
+
+# rate of chromosome gains
+gamma ~ dnExponential(10.0)
+
+# rate of chromosome losses
+delta ~ dnExponential(10.0)
+
+# rate of polyploidization
+#rho ~ dnExponential(10.0)
+#NONE. Entonces:
+rho = 0
+
+# Add MCMC moves for each of the rates.
+mvi = 1
+moves[mvi++] = mvScale(gamma, lambda=1, weight=1) 
+moves[mvi++] = mvScale(delta, lambda=1, weight=1) 
+
+#moves[mvi++] = mvScale(rho, lambda=1, weight=1) 
+#Cero para esta ultima
+
+#Q := fnChromosomes(max_chromo, gamma, delta, rho)
+Q := fnChromosomes(max_chromo, gamma, delta)
+root_frequencies := simplex(rep(1, max_chromo + 1))
+
+chromo_ctmc ~ dnPhyloCTMC(Q=Q, tree=phylogeny, rootFreq=root_frequencies, type="NaturalNumbers")
+chromo_ctmc.clamp(chromo_data)
+mymodel = model(phylogeny)
+
+
+monitors[1] = mnScreen(printgen=10)
+
+monitors[2] = mnJointConditionalAncestralState(filename="output/ChromEvol_simple_anc_states.log", printgen=10, tree=phylogeny, ctmc=chromo_ctmc, type="NaturalNumbers")
+
+monitors[3] = mnModel(filename="output/ChromEvol_simple_model.log", printgen=10)
+
+mymcmc = mcmc(mymodel, monitors, moves)
+
+mymcmc.run(200)
+
+anc_state_trace = readAncestralStateTrace("output/all_bifurcating.log")
+
+ancestralStateTree(phylogeny, anc_state_trace, "output/all_bifurcating.tree", burnin=0.25, reconstruction="marginal")
